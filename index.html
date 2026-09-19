@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MediFlow - Bed & Staff Management</title>
+  <title>MediFlow - Hospital & Patient Management</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -11,9 +11,11 @@
       --accent: #0ea5e9;
       --text: #f8fafc;
       --muted: #94a3b8;
-      --emergency: #ef4444;
-      --urgent: #f59e0b;
-      --normal: #10b981;
+      --c-immediate: #dc2626;
+      --c-emergent: #ea580c;
+      --c-urgent: #eab308;
+      --c-less-urgent: #3b82f6;
+      --c-non-urgent: #10b981;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background: var(--bg); color: var(--text); padding: 16px; }
@@ -32,7 +34,6 @@
     .view.active { display: block; }
     .card { background: var(--card); border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
     h2 { margin-bottom: 12px; font-size: 1.15rem; color: #e2e8f0; }
-    h3 { font-size: 1rem; margin-bottom: 8px; }
     .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
     input, select {
       background: #0f172a; border: 1px solid #334155; color: white;
@@ -42,26 +43,31 @@
       background: var(--accent); color: white; border: none; padding: 10px 16px;
       border-radius: 6px; cursor: pointer; font-weight: 600;
     }
-    .btn-danger { background: var(--emergency); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .btn-danger { background: #ef4444; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
     .bed-card, .staff-card {
       background: #0f172a; border: 1px solid #334155; border-radius: 8px;
       padding: 14px; position: relative;
     }
-    .bed-card.occupied { border-left: 4px solid var(--emergency); }
-    .bed-card.free { border-left: 4px solid var(--normal); }
+    .bed-card.occupied { border-left: 4px solid var(--accent); }
+    .bed-card.free { border-left: 4px solid var(--c-non-urgent); }
     .status-badge {
-      display: inline-block; padding: 3px 8px; font-size: 0.75rem;
+      display: inline-block; padding: 3px 8px; font-size: 0.72rem;
       border-radius: 4px; font-weight: 700; text-transform: uppercase;
     }
-    .status-free { background: rgba(16, 185, 129, 0.2); color: var(--normal); }
-    .status-assigned { background: rgba(239, 68, 68, 0.2); color: var(--emergency); }
-    .badge-3 { background: rgba(239, 68, 68, 0.2); color: var(--emergency); }
-    .badge-2 { background: rgba(245, 158, 11, 0.2); color: var(--urgent); }
-    .badge-1 { background: rgba(16, 185, 129, 0.2); color: var(--normal); }
+    .status-free { background: rgba(16, 185, 129, 0.2); color: var(--c-non-urgent); }
+    .status-assigned { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    /* Severity badges */
+    .badge-5 { background: rgba(220, 38, 38, 0.25); color: var(--c-immediate); }
+    .badge-4 { background: rgba(234, 88, 12, 0.25); color: var(--c-emergent); }
+    .badge-3 { background: rgba(234, 179, 8, 0.25); color: var(--c-urgent); }
+    .badge-2 { background: rgba(59, 130, 246, 0.25); color: var(--c-less-urgent); }
+    .badge-1 { background: rgba(16, 185, 129, 0.25); color: var(--c-non-urgent); }
+
     .table-container { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 500px; }
-    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 600px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #334155; font-size: 0.85rem; }
     th { color: var(--muted); }
   </style>
 </head>
@@ -75,9 +81,8 @@
     </div>
   </header>
 
-  <!-- Hospital System Tab -->
+  <!-- Hospital System View -->
   <main id="hospital-view" class="view active">
-    <!-- Manage Beds -->
     <div class="card">
       <h2>Manage Hospital Beds</h2>
       <div class="form-row">
@@ -87,7 +92,6 @@
       <div id="beds-container" class="grid" style="margin-top: 14px;"></div>
     </div>
 
-    <!-- Manage Doctors -->
     <div class="card">
       <h2>Manage Doctors</h2>
       <div class="form-row">
@@ -97,7 +101,6 @@
       <div id="doctors-container" class="grid" style="margin-top: 14px;"></div>
     </div>
 
-    <!-- Manage Nurses -->
     <div class="card">
       <h2>Manage Nurses</h2>
       <div class="form-row">
@@ -108,16 +111,22 @@
     </div>
   </main>
 
-  <!-- Patient Portal Tab -->
+  <!-- Patient Portal View -->
   <main id="patient-view" class="view">
     <div class="card">
-      <h2>Patient Admission (Automated Staff & Bed Assignment)</h2>
+      <h2>Patient Admission (Automated Triage & Bed Allocation)</h2>
       <div class="form-row">
-        <input type="text" id="p-name" placeholder="Patient Name" />
+        <input type="text" id="p-name" placeholder="Patient Full Name" />
+        <input type="number" id="p-age" placeholder="Age" min="0" max="130" />
+        <input type="text" id="p-symptoms" placeholder="Symptoms / Disease (e.g., Chest Pain, Fracture)" />
+      </div>
+      <div class="form-row">
         <select id="p-severity">
-          <option value="3">Emergency (Level 3)</option>
-          <option value="2">Urgent (Level 2)</option>
-          <option value="1">Normal (Level 1)</option>
+          <option value="5">Resuscitation (Immediate Life Threat)</option>
+          <option value="4">Emergent (Critical / Rapid Deterioration)</option>
+          <option value="3">Urgent (Severe Distress / Serious Illness)</option>
+          <option value="2">Less Urgent (Moderate / Stable)</option>
+          <option value="1">Non-Urgent / Routine (Minor Ailment)</option>
         </select>
         <input type="number" id="p-time" placeholder="Recovery Time (seconds)" min="5" value="30" />
         <button class="btn" onclick="registerPatient()">Admit / Queue</button>
@@ -125,16 +134,17 @@
     </div>
 
     <div class="card">
-      <h2>Priority Waiting List</h2>
+      <h2>Priority Waiting Queue</h2>
       <div class="table-container">
         <table>
           <thead>
             <tr>
               <th>Rank</th>
               <th>Patient ID</th>
-              <th>Name</th>
-              <th>Severity</th>
-              <th>Recovery Duration</th>
+              <th>Name & Age</th>
+              <th>Symptoms / Disease</th>
+              <th>Triage Urgency</th>
+              <th>Expected Duration</th>
               <th>Arrival Time</th>
             </tr>
           </thead>
@@ -145,7 +155,15 @@
   </main>
 
   <script>
-    let state = JSON.parse(localStorage.getItem('mediflow_v2')) || {
+    const SEVERITY_NAMES = {
+      5: "Resuscitation",
+      4: "Emergent",
+      3: "Urgent",
+      2: "Less Urgent",
+      1: "Non-Urgent"
+    };
+
+    let state = JSON.parse(localStorage.getItem('mediflow_v3')) || {
       beds: [
         { id: "BED-01", patient: null, doctorId: null, nurseId: null },
         { id: "BED-02", patient: null, doctorId: null, nurseId: null }
@@ -162,7 +180,7 @@
     };
 
     function saveState() {
-      localStorage.setItem('mediflow_v2', JSON.stringify(state));
+      localStorage.setItem('mediflow_v3', JSON.stringify(state));
     }
 
     function switchTab(view) {
@@ -177,7 +195,7 @@
       }
     }
 
-    // --- Hospital Management ---
+    // --- Hospital System Logic ---
     function addBed() {
       const id = document.getElementById('bed-id-input').value.trim();
       if (!id || state.beds.some(b => b.id.toLowerCase() === id.toLowerCase())) {
@@ -243,17 +261,23 @@
       render();
     }
 
-    // --- Patient Portal & Auto Allocation ---
+    // --- Patient Admission Logic ---
     function registerPatient() {
       const name = document.getElementById('p-name').value.trim();
+      const age = document.getElementById('p-age').value.trim();
+      const symptoms = document.getElementById('p-symptoms').value.trim();
       const severity = parseInt(document.getElementById('p-severity').value);
       const duration = parseInt(document.getElementById('p-time').value) || 30;
 
       if (!name) return alert('Please enter patient name');
+      if (!age) return alert('Please enter patient age');
+      if (!symptoms) return alert('Please enter patient symptoms or diagnosis');
 
       const patient = {
         id: 'PT-' + Date.now().toString().slice(-4),
         name,
+        age,
+        symptoms,
         severity,
         duration,
         remaining: duration,
@@ -267,11 +291,13 @@
       checkAutoAllocation();
 
       document.getElementById('p-name').value = '';
+      document.getElementById('p-age').value = '';
+      document.getElementById('p-symptoms').value = '';
     }
 
     function sortQueue() {
       state.queue.sort((a, b) => {
-        if (b.severity !== a.severity) return b.severity - a.severity; // High severity first
+        if (b.severity !== a.severity) return b.severity - a.severity; // Higher triage priority first
         return a.timestamp - b.timestamp; // Earlier arrival first
       });
     }
@@ -281,11 +307,9 @@
       const freeDoctor = state.doctors.find(d => d.assignedBedId === null);
       const freeNurse = state.nurses.find(n => n.assignedBedId === null);
 
-      // Bed admission requires available bed and waiting patient
       if (freeBed && state.queue.length > 0) {
         const nextPatient = state.queue.shift();
 
-        // Assign staff if available
         if (freeDoctor) {
           freeDoctor.assignedBedId = freeBed.id;
           freeBed.doctorId = freeDoctor.id;
@@ -304,7 +328,6 @@
     function dischargePatient(bedId) {
       const bed = state.beds.find(b => b.id === bedId);
       if (bed) {
-        // Free up assigned doctor and nurse
         if (bed.doctorId) {
           const doc = state.doctors.find(d => d.id === bed.doctorId);
           if (doc) doc.assignedBedId = null;
@@ -324,7 +347,7 @@
       }
     }
 
-    // Recovery Countdown
+    // Real-Time Recovery Countdown Loop
     setInterval(() => {
       let updated = false;
       state.beds.forEach(bed => {
@@ -342,7 +365,7 @@
       }
     }, 1000);
 
-    // --- Render Elements ---
+    // --- Rendering ---
     function renderBeds() {
       const container = document.getElementById('beds-container');
       container.innerHTML = state.beds.map(bed => {
@@ -357,7 +380,7 @@
                 <h3>${bed.id}</h3>
                 <span class="status-badge status-free">Free</span>
               </div>
-              <p style="color: var(--muted); font-size: 0.85rem; margin: 8px 0;">Ready for allocation</p>
+              <p style="color: var(--muted); font-size: 0.85rem; margin: 8px 0;">Ready for admission</p>
               <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.8rem;" onclick="removeBed('${bed.id}')">Delete Bed</button>
             </div>
           `;
@@ -371,17 +394,17 @@
               <span class="status-badge status-assigned">Assigned</span>
             </div>
             <div style="margin-top: 8px;">
-              <span class="status-badge badge-${p.severity}">Level ${p.severity}</span>
-              <p style="margin-top: 4px;"><strong>${p.name}</strong> (${p.id})</p>
-              <p style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">
-                Doc: <strong>${doc ? doc.name : 'Unassigned'}</strong><br/>
-                Nurse: <strong>${nurse ? nurse.name : 'Unassigned'}</strong>
+              <span class="status-badge badge-${p.severity}">${SEVERITY_NAMES[p.severity]}</span>
+              <p style="margin-top: 4px;"><strong>${p.name}</strong> (${p.age} yrs) - <em>${p.id}</em></p>
+              <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 4px;">Condition: <strong>${p.symptoms}</strong></p>
+              <p style="font-size: 0.82rem; color: var(--muted); margin-top: 4px;">
+                Doc: <strong>${doc ? doc.name : 'Unassigned'}</strong> | Nurse: <strong>${nurse ? nurse.name : 'Unassigned'}</strong>
               </p>
-              <p style="margin-top: 8px; font-size: 1rem; color: var(--accent);">
+              <p style="margin-top: 8px; font-size: 0.95rem; color: var(--accent);">
                 Recovery: <strong>${p.remaining}s</strong> left
               </p>
             </div>
-            <button class="btn btn-danger" style="margin-top: 10px; padding: 6px 12px; font-size: 0.85rem;" onclick="dischargePatient('${bed.id}')">Discharge</button>
+            <button class="btn btn-danger" style="margin-top: 10px; padding: 6px 12px; font-size: 0.82rem;" onclick="dischargePatient('${bed.id}')">Discharge</button>
           </div>
         `;
       }).join('');
@@ -398,7 +421,7 @@
             </span>
           </div>
           <p style="font-size: 0.8rem; color: var(--muted); margin: 6px 0;">
-            ID: ${doc.id} ${doc.assignedBedId ? `| At: ${doc.assignedBedId}` : ''}
+            ID: ${doc.id} ${doc.assignedBedId ? `| Bed: ${doc.assignedBedId}` : ''}
           </p>
           <button class="btn btn-danger" style="padding: 3px 8px; font-size: 0.75rem;" onclick="removeDoctor('${doc.id}')">Remove</button>
         </div>
@@ -416,7 +439,7 @@
             </span>
           </div>
           <p style="font-size: 0.8rem; color: var(--muted); margin: 6px 0;">
-            ID: ${nurse.id} ${nurse.assignedBedId ? `| At: ${nurse.assignedBedId}` : ''}
+            ID: ${nurse.id} ${nurse.assignedBedId ? `| Bed: ${nurse.assignedBedId}` : ''}
           </p>
           <button class="btn btn-danger" style="padding: 3px 8px; font-size: 0.75rem;" onclick="removeNurse('${nurse.id}')">Remove</button>
         </div>
@@ -429,8 +452,9 @@
         <tr>
           <td>#${idx + 1}</td>
           <td>${p.id}</td>
-          <td>${p.name}</td>
-          <td><span class="status-badge badge-${p.severity}">Level ${p.severity}</span></td>
+          <td><strong>${p.name}</strong> (${p.age}y)</td>
+          <td>${p.symptoms}</td>
+          <td><span class="status-badge badge-${p.severity}">${SEVERITY_NAMES[p.severity]}</span></td>
           <td>${p.duration}s</td>
           <td>${new Date(p.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</td>
         </tr>
