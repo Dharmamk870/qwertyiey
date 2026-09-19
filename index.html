@@ -65,17 +65,8 @@
     .badge-2 { background: rgba(59, 130, 246, 0.25); color: var(--c-less-urgent); }
     .badge-1 { background: rgba(16, 185, 129, 0.25); color: var(--c-non-urgent); }
 
-    .ambulance-alert {
-      background: rgba(220, 38, 38, 0.12);
-      border: 1px dashed var(--c-immediate);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-      display: none;
-    }
-
     .table-container { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 650px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 600px; }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #334155; font-size: 0.85rem; }
     th { color: var(--muted); }
   </style>
@@ -127,11 +118,10 @@
       <div class="form-row">
         <input type="text" id="p-name" placeholder="Patient Full Name" />
         <input type="number" id="p-age" placeholder="Age" min="0" max="130" />
-        <input type="text" id="p-symptoms" placeholder="Symptoms / Disease (e.g., Severe Chest Pain)" />
+        <input type="text" id="p-symptoms" placeholder="Symptoms / Disease (e.g., Chest Pain, Fracture)" />
       </div>
-
       <div class="form-row">
-        <select id="p-severity" onchange="handleSeverityChange()">
+        <select id="p-severity">
           <option value="5">Resuscitation (Immediate Life Threat)</option>
           <option value="4">Emergent (Critical / Rapid Deterioration)</option>
           <option value="3">Urgent (Severe Distress / Serious Illness)</option>
@@ -140,23 +130,8 @@
         </select>
         <input type="number" id="p-hours" placeholder="Recovery Hours" min="0" value="0" />
         <input type="number" id="p-minutes" placeholder="Recovery Minutes" min="0" max="59" value="30" />
+        <button class="btn" onclick="registerPatient()">Admit / Queue</button>
       </div>
-
-      <!-- Ambulance Prompt Section (Triggered for Urgent, Emergent, Resuscitation) -->
-      <div id="ambulance-box" class="ambulance-alert">
-        <p style="font-size: 0.9rem; margin-bottom: 8px; font-weight: 600; color: #fca5a5;">
-          High Urgency Detected: Do you require an emergency ambulance dispatch?
-        </p>
-        <div class="form-row" style="margin-bottom: 0;">
-          <select id="p-ambulance-choice" onchange="handleAmbulanceChoiceChange()" style="max-width: 140px;">
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </select>
-          <input type="text" id="p-address" placeholder="Enter Pickup Address (House / Street / Landmark)" style="display: none;" />
-        </div>
-      </div>
-
-      <button class="btn" onclick="registerPatient()">Admit / Queue</button>
     </div>
 
     <div class="card">
@@ -168,11 +143,10 @@
               <th>Rank</th>
               <th>Patient ID</th>
               <th>Name & Age</th>
-              <th>Symptoms</th>
-              <th>Urgency</th>
-              <th>Ambulance Dispatch</th>
-              <th>Duration</th>
-              <th>Arrival</th>
+              <th>Symptoms / Disease</th>
+              <th>Triage Urgency</th>
+              <th>Required Duration</th>
+              <th>Arrival Time</th>
             </tr>
           </thead>
           <tbody id="queue-body"></tbody>
@@ -202,7 +176,7 @@
       return parts.join(' ');
     }
 
-    let state = JSON.parse(localStorage.getItem('mediflow_v5')) || {
+    let state = JSON.parse(localStorage.getItem('mediflow_v4')) || {
       beds: [
         { id: "BED-01", patient: null, doctorId: null, nurseId: null },
         { id: "BED-02", patient: null, doctorId: null, nurseId: null }
@@ -219,7 +193,7 @@
     };
 
     function saveState() {
-      localStorage.setItem('mediflow_v5', JSON.stringify(state));
+      localStorage.setItem('mediflow_v4', JSON.stringify(state));
     }
 
     function switchTab(view) {
@@ -233,31 +207,6 @@
         document.getElementById('patient-view').classList.add('active');
       }
     }
-
-    // --- Ambulance & Severity Interactions ---
-    function handleSeverityChange() {
-      const severity = parseInt(document.getElementById('p-severity').value);
-      const ambulanceBox = document.getElementById('ambulance-box');
-      
-      // Prompt for Resuscitation (5), Emergent (4), and Urgent (3)
-      if (severity >= 3) {
-        ambulanceBox.style.display = 'block';
-      } else {
-        ambulanceBox.style.display = 'none';
-        document.getElementById('p-ambulance-choice').value = 'no';
-        document.getElementById('p-address').style.display = 'none';
-        document.getElementById('p-address').value = '';
-      }
-    }
-
-    function handleAmbulanceChoiceChange() {
-      const choice = document.getElementById('p-ambulance-choice').value;
-      const addressInput = document.getElementById('p-address');
-      addressInput.style.display = choice === 'yes' ? 'block' : 'none';
-    }
-
-    // Initialize prompt state on load
-    handleSeverityChange();
 
     // --- Hospital System Logic ---
     function addBed() {
@@ -338,21 +287,8 @@
 
       if (!name) return alert('Please enter patient name');
       if (!age) return alert('Please enter patient age');
-      if (!symptoms) return alert('Please enter patient symptoms');
+      if (!symptoms) return alert('Please enter patient symptoms or diagnosis');
       if (totalSeconds <= 0) return alert('Please specify a recovery duration greater than 0');
-
-      let needsAmbulance = false;
-      let address = '';
-
-      if (severity >= 3) {
-        needsAmbulance = document.getElementById('p-ambulance-choice').value === 'yes';
-        if (needsAmbulance) {
-          address = document.getElementById('p-address').value.trim();
-          if (!address) {
-            return alert('Please enter the pickup address for ambulance dispatch.');
-          }
-        }
-      }
 
       const patient = {
         id: 'PT-' + Date.now().toString().slice(-4),
@@ -360,8 +296,6 @@
         age,
         symptoms,
         severity,
-        needsAmbulance,
-        address,
         duration: totalSeconds,
         remaining: totalSeconds,
         timestamp: Date.now()
@@ -373,21 +307,17 @@
       render();
       checkAutoAllocation();
 
-      // Reset form
       document.getElementById('p-name').value = '';
       document.getElementById('p-age').value = '';
       document.getElementById('p-symptoms').value = '';
       document.getElementById('p-hours').value = '0';
       document.getElementById('p-minutes').value = '30';
-      document.getElementById('p-ambulance-choice').value = 'no';
-      document.getElementById('p-address').value = '';
-      document.getElementById('p-address').style.display = 'none';
     }
 
     function sortQueue() {
       state.queue.sort((a, b) => {
-        if (b.severity !== a.severity) return b.severity - a.severity; // Triage urgency first
-        return a.timestamp - b.timestamp; // Arrival time tie-breaker
+        if (b.severity !== a.severity) return b.severity - a.severity; // Higher priority first
+        return a.timestamp - b.timestamp; // Earlier arrival first
       });
     }
 
@@ -436,7 +366,7 @@
       }
     }
 
-    // Real-Time Recovery Countdown Loop
+    // Real-Time Recovery Countdown
     setInterval(() => {
       let updated = false;
       state.beds.forEach(bed => {
@@ -485,8 +415,7 @@
             <div style="margin-top: 8px;">
               <span class="status-badge badge-${p.severity}">${SEVERITY_NAMES[p.severity]}</span>
               <p style="margin-top: 4px;"><strong>${p.name}</strong> (${p.age} yrs) - <em>${p.id}</em></p>
-              <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">Condition: <strong>${p.symptoms}</strong></p>
-              ${p.needsAmbulance ? `<p style="font-size: 0.8rem; color: #f87171; margin-top: 2px;">🚑 Ambulance: ${p.address}</p>` : ''}
+              <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 4px;">Condition: <strong>${p.symptoms}</strong></p>
               <p style="font-size: 0.82rem; color: var(--muted); margin-top: 4px;">
                 Doc: <strong>${doc ? doc.name : 'Unassigned'}</strong> | Nurse: <strong>${nurse ? nurse.name : 'Unassigned'}</strong>
               </p>
@@ -511,4 +440,54 @@
             </span>
           </div>
           <p style="font-size: 0.8rem; color: var(--muted); margin: 6px 0;">
-            ID: ${doc.id} ${doc.assignedBedId ? `| Bed: ${doc.assigned
+            ID: ${doc.id} ${doc.assignedBedId ? `| Bed: ${doc.assignedBedId}` : ''}
+          </p>
+          <button class="btn btn-danger" style="padding: 3px 8px; font-size: 0.75rem;" onclick="removeDoctor('${doc.id}')">Remove</button>
+        </div>
+      `).join('');
+    }
+
+    function renderNurses() {
+      const container = document.getElementById('nurses-container');
+      container.innerHTML = state.nurses.map(nurse => `
+        <div class="staff-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>${nurse.name}</strong>
+            <span class="status-badge ${nurse.assignedBedId ? 'status-assigned' : 'status-free'}">
+              ${nurse.assignedBedId ? 'Assigned' : 'Free'}
+            </span>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--muted); margin: 6px 0;">
+            ID: ${nurse.id} ${nurse.assignedBedId ? `| Bed: ${nurse.assignedBedId}` : ''}
+          </p>
+          <button class="btn btn-danger" style="padding: 3px 8px; font-size: 0.75rem;" onclick="removeNurse('${nurse.id}')">Remove</button>
+        </div>
+      `).join('');
+    }
+
+    function renderQueue() {
+      const tbody = document.getElementById('queue-body');
+      tbody.innerHTML = state.queue.map((p, idx) => `
+        <tr>
+          <td>#${idx + 1}</td>
+          <td>${p.id}</td>
+          <td><strong>${p.name}</strong> (${p.age}y)</td>
+          <td>${p.symptoms}</td>
+          <td><span class="status-badge badge-${p.severity}">${SEVERITY_NAMES[p.severity]}</span></td>
+          <td>${formatTime(p.duration)}</td>
+          <td>${new Date(p.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</td>
+        </tr>
+      `).join('');
+    }
+
+    function render() {
+      renderBeds();
+      renderDoctors();
+      renderNurses();
+      renderQueue();
+    }
+
+    render();
+  </script>
+</body>
+</html>
