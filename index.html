@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediFlow - Bed & Patient Management</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #0ea5e9;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --emergency: #ef4444;
+      --urgent: #f59e0b;
+      --normal: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .tabs { display: flex; gap: 12px; }
+    button.tab-btn {
+      background: var(--card); color: var(--muted); border: 1px solid #334155;
+      padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    button.tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .view { display: none; }
+    .view.active { display: block; }
+    .card { background: var(--card); border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+    h2 { margin-bottom: 14px; font-size: 1.25rem; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    input, select {
+      background: #0f172a; border: 1px solid #334155; color: white;
+      padding: 10px 14px; border-radius: 6px; outline: none; flex: 1; min-width: 160px;
+    }
+    .btn {
+      background: var(--accent); color: white; border: none; padding: 10px 20px;
+      border-radius: 6px; cursor: pointer; font-weight: 600;
+    }
+    .btn-danger { background: var(--emergency); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .bed-card {
+      background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+      padding: 16px; position: relative;
+    }
+    .bed-card.occupied { border-left: 4px solid var(--emergency); }
+    .bed-card.free { border-left: 4px solid var(--normal); }
+    .badge {
+      display: inline-block; padding: 3px 8px; font-size: 0.75rem;
+      border-radius: 4px; text-transform: uppercase; font-weight: 700;
+    }
+    .badge-3 { background: rgba(239, 68, 68, 0.2); color: var(--emergency); }
+    .badge-2 { background: rgba(245, 158, 11, 0.2); color: var(--urgent); }
+    .badge-1 { background: rgba(16, 185, 129, 0.2); color: var(--normal); }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #334155; }
+    th { color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>MediFlow Central</h1>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('hospital')">Hospital System</button>
+      <button class="tab-btn" onclick="switchTab('patient')">Patient Portal</button>
+    </div>
+  </header>
+
+  <!-- Hospital Management Tab -->
+  <main id="hospital-view" class="view active">
+    <div class="card">
+      <h2>Manage Hospital Beds</h2>
+      <div class="form-row">
+        <input type="text" id="bed-id-input" placeholder="Bed ID (e.g., BED-101)" />
+        <button class="btn" onclick="addBed()">Add Bed</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Real-Time Bed Occupancy</h2>
+      <div id="beds-container" class="grid"></div>
+    </div>
+  </main>
+
+  <!-- Patient Registration & Queue Tab -->
+  <main id="patient-view" class="view">
+    <div class="card">
+      <h2>Register Patient & Waiting Queue</h2>
+      <div class="form-row">
+        <input type="text" id="p-name" placeholder="Patient Name" />
+        <select id="p-severity">
+          <option value="3">Emergency (Level 3)</option>
+          <option value="2">Urgent (Level 2)</option>
+          <option value="1">Normal (Level 1)</option>
+        </select>
+        <input type="number" id="p-time" placeholder="Recovery Time (seconds)" min="5" value="30" />
+        <input type="text" id="p-doctor" placeholder="Assigned Doctor" />
+        <input type="text" id="p-nurse" placeholder="Assigned Nurse" />
+        <button class="btn" onclick="registerPatient()">Admit / Queue</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Priority Waiting List</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Severity</th>
+            <th>Assigned Doctor</th>
+            <th>Nurse</th>
+            <th>Arrival Time</th>
+          </tr>
+        </thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    let state = JSON.parse(localStorage.getItem('mediflow_state')) || {
+      beds: [
+        { id: "BED-01", patient: null },
+        { id: "BED-02", patient: null }
+      ],
+      queue: []
+    };
+
+    function saveState() {
+      localStorage.setItem('mediflow_state', JSON.stringify(state));
+    }
+
+    function switchTab(view) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      if (view === 'hospital') {
+        document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+        document.getElementById('hospital-view').classList.add('active');
+      } else {
+        document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+        document.getElementById('patient-view').classList.add('active');
+      }
+    }
+
+    function addBed() {
+      const id = document.getElementById('bed-id-input').value.trim();
+      if (!id || state.beds.some(b => b.id === id)) return alert('Enter a valid unique Bed ID');
+      state.beds.push({ id, patient: null });
+      document.getElementById('bed-id-input').value = '';
+      saveState();
+      render();
+      checkAutoAllocation();
+    }
+
+    function removeBed(bedId) {
+      const bed = state.beds.find(b => b.id === bedId);
+      if (bed && bed.patient) {
+        if (!confirm('Bed is occupied. Remove anyway?')) return;
+      }
+      state.beds = state.beds.filter(b => b.id !== bedId);
+      saveState();
+      render();
+    }
+
+    function registerPatient() {
+      const name = document.getElementById('p-name').value.trim();
+      const severity = parseInt(document.getElementById('p-severity').value);
+      const duration = parseInt(document.getElementById('p-time').value) || 30;
+      const doctor = document.getElementById('p-doctor').value.trim() || 'Dr. On-Duty';
+      const nurse = document.getElementById('p-nurse').value.trim() || 'Nurse On-Duty';
+
+      if (!name) return alert('Please enter patient name');
+
+      const patient = {
+        id: 'PT-' + Date.now().toString().slice(-4),
+        name,
+        severity,
+        duration,
+        remaining: duration,
+        doctor,
+        nurse,
+        timestamp: Date.now()
+      };
+
+      // Add to queue and sort (Severity descending, then timestamp ascending)
+      state.queue.push(patient);
+      sortQueue();
+      saveState();
+      render();
+      checkAutoAllocation();
+
+      document.getElementById('p-name').value = '';
+    }
+
+    function sortQueue() {
+      state.queue.sort((a, b) => {
+        if (b.severity !== a.severity) {
+          return b.severity - a.severity; // High severity first
+        }
+        return a.timestamp - b.timestamp; // Earlier arrival first
+      });
+    }
+
+    function checkAutoAllocation() {
+      const freeBed = state.beds.find(b => b.patient === null);
+      if (freeBed && state.queue.length > 0) {
+        const nextPatient = state.queue.shift();
+        freeBed.patient = nextPatient;
+        saveState();
+        render();
+      }
+    }
+
+    function dischargePatient(bedId) {
+      const bed = state.beds.find(b => b.id === bedId);
+      if (bed) {
+        bed.patient = null;
+        saveState();
+        render();
+        checkAutoAllocation();
+      }
+    }
+
+    // Timer Loop
+    setInterval(() => {
+      let updated = false;
+      state.beds.forEach(bed => {
+        if (bed.patient && bed.patient.remaining > 0) {
+          bed.patient.remaining--;
+          updated = true;
+          if (bed.patient.remaining <= 0) {
+            dischargePatient(bed.id);
+          }
+        }
+      });
+      if (updated) {
+        renderBeds();
+        saveState();
+      }
+    }, 1000);
+
+    function renderBeds() {
+      const container = document.getElementById('beds-container');
+      container.innerHTML = state.beds.map(bed => {
+        if (!bed.patient) {
+          return `
+            <div class="bed-card free">
+              <h3>${bed.id}</h3>
+              <p style="color: var(--normal); margin: 8px 0;">Available</p>
+              <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.8rem;" onclick="removeBed('${bed.id}')">Delete Bed</button>
+            </div>
+          `;
+        }
+        const p = bed.patient;
+        return `
+          <div class="bed-card occupied">
+            <div style="display:flex; justify-content:space-between;">
+              <h3>${bed.id}</h3>
+              <span class="badge badge-${p.severity}">Level ${p.severity}</span>
+            </div>
+            <p style="margin-top: 6px;"><strong>${p.name}</strong> (${p.id})</p>
+            <p style="font-size: 0.85rem; color: var(--muted);">Doc: ${p.doctor} | Nurse: ${p.nurse}</p>
+            <p style="margin-top: 10px; font-size: 1.1rem; color: var(--accent);">
+              Recovery: <strong>${p.remaining}s</strong> left
+            </p>
+            <button class="btn btn-danger" style="margin-top: 10px; padding: 6px 12px; font-size: 0.85rem;" onclick="dischargePatient('${bed.id}')">Discharge</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderQueue() {
+      const tbody = document.getElementById('queue-body');
+      tbody.innerHTML = state.queue.map((p, idx) => `
+        <tr>
+          <td>#${idx + 1}</td>
+          <td>${p.id}</td>
+          <td>${p.name}</td>
+          <td><span class="badge badge-${p.severity}">Level ${p.severity}</span></td>
+          <td>${p.doctor}</td>
+          <td>${p.nurse}</td>
+          <td>${new Date(p.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</td>
+        </tr>
+      `).join('');
+    }
+
+    function render() {
+      renderBeds();
+      renderQueue();
+    }
+
+    render();
+  </script>
+</body>
+</html>
