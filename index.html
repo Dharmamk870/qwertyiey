@@ -19,14 +19,43 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background: var(--bg); color: var(--text); padding: 16px; }
-    header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+    header { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 12px; 
+      margin-bottom: 20px; 
+      background: var(--card);
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .ist-clock {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ist-clock span { color: var(--muted); font-size: 0.75rem; font-weight: normal; }
     @media (min-width: 600px) {
-      header { flex-direction: row; justify-content: space-between; align-items: center; }
       body { padding: 24px; }
     }
     .tabs { display: flex; gap: 8px; }
     button.tab-btn {
-      background: var(--card); color: var(--muted); border: 1px solid #334155;
+      background: #0f172a; color: var(--muted); border: 1px solid #334155;
       padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1;
     }
     button.tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
@@ -39,6 +68,15 @@
       background: #0f172a; border: 1px solid #334155; color: white;
       padding: 10px 12px; border-radius: 6px; outline: none; flex: 1; min-width: 140px;
     }
+    .time-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 220px;
+    }
+    .time-group input { min-width: 70px; }
+    .time-group label { font-size: 0.8rem; color: var(--muted); }
     .btn {
       background: var(--accent); color: white; border: none; padding: 10px 16px;
       border-radius: 6px; cursor: pointer; font-weight: 600;
@@ -66,15 +104,21 @@
     .badge-1 { background: rgba(16, 185, 129, 0.25); color: var(--c-non-urgent); }
 
     .table-container { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 600px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 650px; }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #334155; font-size: 0.85rem; }
     th { color: var(--muted); }
   </style>
 </head>
 <body>
 
+  <!-- Persistent Header with Live IST Clock -->
   <header>
-    <h1>MediFlow Central</h1>
+    <div class="header-top">
+      <h1>MediFlow Central</h1>
+      <div class="ist-clock" id="ist-clock-display">
+        <span>IST</span> --:--:--
+      </div>
+    </div>
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('hospital')">Hospital System</button>
       <button class="tab-btn" onclick="switchTab('patient')">Patient Portal</button>
@@ -118,7 +162,7 @@
       <div class="form-row">
         <input type="text" id="p-name" placeholder="Patient Full Name" />
         <input type="number" id="p-age" placeholder="Age" min="0" max="130" />
-        <input type="text" id="p-symptoms" placeholder="Symptoms / Disease (e.g., Chest Pain, Fracture)" />
+        <input type="text" id="p-symptoms" placeholder="Symptoms / Disease (e.g., Acute Fracture)" />
       </div>
       <div class="form-row">
         <select id="p-severity">
@@ -128,7 +172,12 @@
           <option value="2">Less Urgent (Moderate / Stable)</option>
           <option value="1">Non-Urgent / Routine (Minor Ailment)</option>
         </select>
-        <input type="number" id="p-time" placeholder="Recovery Time (seconds)" min="5" value="30" />
+        <div class="time-group">
+          <input type="number" id="p-hours" placeholder="Hours" min="0" value="0" />
+          <label>hrs</label>
+          <input type="number" id="p-minutes" placeholder="Mins" min="0" max="59" value="30" />
+          <label>mins</label>
+        </div>
         <button class="btn" onclick="registerPatient()">Admit / Queue</button>
       </div>
     </div>
@@ -144,8 +193,8 @@
               <th>Name & Age</th>
               <th>Symptoms / Disease</th>
               <th>Triage Urgency</th>
-              <th>Expected Duration</th>
-              <th>Arrival Time</th>
+              <th>Recovery Duration</th>
+              <th>Arrival (IST)</th>
             </tr>
           </thead>
           <tbody id="queue-body"></tbody>
@@ -163,7 +212,7 @@
       1: "Non-Urgent"
     };
 
-    let state = JSON.parse(localStorage.getItem('mediflow_v3')) || {
+    let state = JSON.parse(localStorage.getItem('mediflow_v4')) || {
       beds: [
         { id: "BED-01", patient: null, doctorId: null, nurseId: null },
         { id: "BED-02", patient: null, doctorId: null, nurseId: null }
@@ -180,7 +229,34 @@
     };
 
     function saveState() {
-      localStorage.setItem('mediflow_v3', JSON.stringify(state));
+      localStorage.setItem('mediflow_v4', JSON.stringify(state));
+    }
+
+    // --- Live IST Clock ---
+    function updateISTClock() {
+      const now = new Date();
+      const options = {
+        timeZone: 'Asia/Kolkata',
+        hour12: true,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      };
+      const istString = now.toLocaleTimeString('en-IN', options);
+      document.getElementById('ist-clock-display').innerHTML = `<span>IST</span> ${istString}`;
+    }
+    setInterval(updateISTClock, 1000);
+    updateISTClock();
+
+    // Helper: Convert seconds to clean Hh Mm Ss format
+    function formatTime(totalSeconds) {
+      if (totalSeconds <= 0) return '0m 0s';
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
     }
 
     function switchTab(view) {
@@ -267,11 +343,15 @@
       const age = document.getElementById('p-age').value.trim();
       const symptoms = document.getElementById('p-symptoms').value.trim();
       const severity = parseInt(document.getElementById('p-severity').value);
-      const duration = parseInt(document.getElementById('p-time').value) || 30;
+      const hours = parseInt(document.getElementById('p-hours').value) || 0;
+      const minutes = parseInt(document.getElementById('p-minutes').value) || 0;
+
+      const totalDurationSec = (hours * 3600) + (minutes * 60);
 
       if (!name) return alert('Please enter patient name');
       if (!age) return alert('Please enter patient age');
       if (!symptoms) return alert('Please enter patient symptoms or diagnosis');
+      if (totalDurationSec <= 0) return alert('Please provide at least 1 minute of recovery duration');
 
       const patient = {
         id: 'PT-' + Date.now().toString().slice(-4),
@@ -279,8 +359,8 @@
         age,
         symptoms,
         severity,
-        duration,
-        remaining: duration,
+        duration: totalDurationSec,
+        remaining: totalDurationSec,
         timestamp: Date.now()
       };
 
@@ -293,12 +373,14 @@
       document.getElementById('p-name').value = '';
       document.getElementById('p-age').value = '';
       document.getElementById('p-symptoms').value = '';
+      document.getElementById('p-hours').value = '0';
+      document.getElementById('p-minutes').value = '30';
     }
 
     function sortQueue() {
       state.queue.sort((a, b) => {
-        if (b.severity !== a.severity) return b.severity - a.severity; // Higher triage priority first
-        return a.timestamp - b.timestamp; // Earlier arrival first
+        if (b.severity !== a.severity) return b.severity - a.severity; // Triage priority
+        return a.timestamp - b.timestamp; // Arrival FIFO for same priority
       });
     }
 
@@ -347,7 +429,7 @@
       }
     }
 
-    // Real-Time Recovery Countdown Loop
+    // Real-Time 1-second countdown loop
     setInterval(() => {
       let updated = false;
       state.beds.forEach(bed => {
@@ -365,7 +447,7 @@
       }
     }, 1000);
 
-    // --- Rendering ---
+    // --- Render Functions ---
     function renderBeds() {
       const container = document.getElementById('beds-container');
       container.innerHTML = state.beds.map(bed => {
@@ -401,7 +483,7 @@
                 Doc: <strong>${doc ? doc.name : 'Unassigned'}</strong> | Nurse: <strong>${nurse ? nurse.name : 'Unassigned'}</strong>
               </p>
               <p style="margin-top: 8px; font-size: 0.95rem; color: var(--accent);">
-                Recovery: <strong>${p.remaining}s</strong> left
+                Recovery Left: <strong>${formatTime(p.remaining)}</strong>
               </p>
             </div>
             <button class="btn btn-danger" style="margin-top: 10px; padding: 6px 12px; font-size: 0.82rem;" onclick="dischargePatient('${bed.id}')">Discharge</button>
@@ -448,27 +530,4 @@
 
     function renderQueue() {
       const tbody = document.getElementById('queue-body');
-      tbody.innerHTML = state.queue.map((p, idx) => `
-        <tr>
-          <td>#${idx + 1}</td>
-          <td>${p.id}</td>
-          <td><strong>${p.name}</strong> (${p.age}y)</td>
-          <td>${p.symptoms}</td>
-          <td><span class="status-badge badge-${p.severity}">${SEVERITY_NAMES[p.severity]}</span></td>
-          <td>${p.duration}s</td>
-          <td>${new Date(p.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</td>
-        </tr>
-      `).join('');
-    }
-
-    function render() {
-      renderBeds();
-      renderDoctors();
-      renderNurses();
-      renderQueue();
-    }
-
-    render();
-  </script>
-</body>
-</html>
+      tbody.in
